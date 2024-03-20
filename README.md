@@ -2,10 +2,9 @@
 This repo has code for our paper ["Look Ahead Text Understanding and LLM Stitching"](INSERT LINK TO PAPER HERE)
 
 ### How to run
-```
 Select experiment in LASI.py file
 Run LASI.py
-```
+
 
 ### Citing
 

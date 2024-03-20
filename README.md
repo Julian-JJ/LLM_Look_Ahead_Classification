@@ -8,12 +8,12 @@ Run LASI.py
 
 ### Citing
 
-If you use the data or the model, please cite,
+If you feel this information is helpful, please cite
 ```
-@inproceedings{Jiang2024ICWSM,
+@inproceedings{JiangLASI2024,
   title={Look Ahead Text Understanding and LLM Stitching},
   author={Junlin Jiang, Xin Li},
   year={2024},
-  booktitle={ICWSM},
+  booktitle={International AAAI Conference on Web and Social Media},
 }
 ```

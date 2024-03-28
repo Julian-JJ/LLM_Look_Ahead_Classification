@@ -158,8 +158,12 @@ def process_data_Pubmed_noise(filter_array, low, high):
     #reuse associate_sentences_with_labels to be efficent
     newTrain=associate_sentences_with_labels_pubmed(Data["train"]["sentences"],Data["train"]["labels"],filter_array,low,high)
     newValidation=associate_sentences_with_labels_pubmed(Data["validation"]["sentences"],Data["validation"]["labels"],filter_array,low,high)
-    newTestdel1=sentenceCombineLASI1TestDelete(Data["test"],filter_array,low,high,1)
-    newTestdel2=sentenceCombineLASI1TestDelete(Data["test"],filter_array,low,high,2)
+    if filter_array==[-1]:
+        newTestdel1=sentenceCombineLASI1TestDelete(Data["test"],1)
+        newTestdel2=sentenceCombineLASI1TestDelete(Data["test"],2)
+    elif filter_array==[-2,-1]:
+        newTestdel1=sentenceCombineLASI2TestDelete(Data["test"],1)
+        newTestdel2=sentenceCombineLASI2TestDelete(Data["test"],2)
     newTestadd1=sentenceCombineLASI1TestAdd(Data["test"],filter_array,low,high,1)
     newTestadd2=sentenceCombineLASI1TestAdd(Data["test"],filter_array,low,high,2)
   
@@ -176,38 +180,60 @@ def process_data_Pubmed_noise(filter_array, low, high):
 
 
 
-def sentenceCombineLASI1TestDelete(dataset, filter_array, low, high, numDelete):
+def sentenceCombineLASI1TestDelete(dataset, numDelete):
     #3/11/2024 Changed numericalization to be in sentence association step to be consistent
     numericalize={'background':0, 'objective':1, 'methods':2,  'results':3, 'conclusions':4}
 
     returnArray = []
     for i in range(0,len(dataset["sentences"])):
-        for j in range(low,len(dataset["sentences"][i])-high):
+        for j in range(1,len(dataset["sentences"][i])):
             
             temp={}
             
             sentenceArray=[] 
             
-            combinedArray = []
-            for k in filter_array:
-                combinedArray.append(re.split("\ ", dataset["sentences"][i][j+k]))
-             
+            wordArray = re.split("\ ", dataset["sentences"][i][j-1])
             for k in range(0, numDelete):
-                array_num = random.randint(0,len(combinedArray)-1)
-                if(len(combinedArray[array_num])>0):
-                        deletenum = random.randint(0,len(combinedArray[array_num])-1)
-                        combinedArray[array_num].pop(deletenum) 
+                if(len(wordArray)>0):
+                    deletenum = random.randint(0,len(wordArray)-1)
+                    wordArray.pop(deletenum)
             
-            for k in range(0,len(combinedArray)):
-                 sentenceArray.append(" ".join(combinedArray[k]))
+            sentenceArray.append(" ".join(wordArray))
 
-                
-            
-                
             temp["sentences"]=sentenceArray
-            temp["labels"]=dataset["labels"][i][j]
+            temp["labels"]=numericalize[dataset["labels"][i][j]]
             returnArray.append(temp)
         
+    return returnArray
+
+def sentenceCombineLASI2TestDelete(dataset, numDelete):
+    #3/11/2024 Changed numericalization to be in sentence association step to be consistent
+    numericalize={'background':0, 'objective':1, 'methods':2,  'results':3, 'conclusions':4}
+    returnArray=[]
+    for i in range(0, len(dataset["sentences"])):
+        for j in range(2, len(dataset["sentences"][i])):
+            temp={}
+            
+            sentenceArray=[]
+            
+            wordArray1 = re.split("\ ", dataset["sentences"][i][j-2])
+            wordArray2 = re.split("\ ", dataset["sentences"][i][j-1])
+            for k in range(0, numDelete):
+                arrayNum=random.randint(0,1)
+                if(arrayNum==0):
+                    if(len(wordArray1)>0):
+                        deletenum = random.randint(0,len(wordArray1)-1)
+                        wordArray1.pop(deletenum)
+                else:
+                    if(len(wordArray2)>0):
+                        deletenum = random.randint(0,len(wordArray2)-1)
+                        wordArray2.pop(deletenum)
+            
+            sentenceArray.append(" ".join(wordArray1))
+            sentenceArray.append(" ".join(wordArray2))
+            temp["sentences"]=sentenceArray
+            temp["labels"]=numericalize[dataset["labels"][i][j]]
+            returnArray.append(temp)
     return returnArray
 
 def sentenceCombineLASI1TestAdd(dataset, filter_array, low, high, numAdd):

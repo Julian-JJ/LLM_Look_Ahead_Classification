@@ -36,11 +36,11 @@ def run_process(input_data, model_type,evaluation_method, batch_size):
             ProcessedData = dataset_processing.process_data_Pubmed([-1],1,0) 
         elif input_data=="s_{k-1}s_{k-2}":
             ProcessedData = dataset_processing.process_data_Pubmed([-2,-1],2,0)
-    # elif evaluation_method=="Noise":
-    #     if input_data=="s_{k-1}":
-    #         ProcessedData = dataset_processing.process_data_Pubmed_noise([-1],1,0)
-    #     elif input_data=="s_{k-1}s_{k-2}":
-    #         ProcessedData = dataset_processing.process_data_Pubmed_noise([-2,-1],2,0)
+    elif evaluation_method=="Noise":
+        if input_data=="s_{k-1}":
+            ProcessedData = dataset_processing.process_data_Pubmed_noise([-1],1,0)
+        elif input_data=="s_{k-1}s_{k-2}":
+            ProcessedData = dataset_processing.process_data_Pubmed_noise([-2,-1],2,0)
 
     #model      
     if model_type=="BERT" and (input_data=="s_{k}" or input_data=="s_{k-1}"):

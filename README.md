@@ -11,7 +11,7 @@ If you feel this information is helpful, please cite
 ```
 @inproceedings{JiangLASI2024,
   title={Look Ahead Text Understanding and LLM Stitching},
-  author={Junlin Julian Jiang, Xin Li},
+  author={Jiang, Junlin Julian and Li, Xin},
   year={2024},
   booktitle={International AAAI Conference on Web and Social Media},
 }

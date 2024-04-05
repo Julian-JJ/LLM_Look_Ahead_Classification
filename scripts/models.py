@@ -12,13 +12,14 @@ BART_config=AutoConfig.from_pretrained('facebook/bart-base')
 BART_config.pad_token_id=BART_config.eos_token_id
 num_labels = 5
 
-def bert_base_uncased():    
+def bert_base_uncased():  
+    """Returns BERT model""" 
     mymodel = AutoModelForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=num_labels)
     return mymodel
 
 
 class multi_sentence_bert(nn.Module):     
-    
+    """Model which applies BERT to each of multiple sentences individually"""
     def __init__(self, total_sentences):
         super(multi_sentence_bert, self).__init__()
 
@@ -29,58 +30,42 @@ class multi_sentence_bert(nn.Module):
                 
         
     def forward(self, input_ids=None, attention_mask=None,token_type_ids=None,labels = None):
-        #print(input_ids.shape)
-        #print(attention_mask.shape)
-        #print(token_type_ids.shape)
-        
-      
 
-        #change to reshape if issue
         outputs1 = self.bert(input_ids[:,0:self.num_sentences, :].view(input_ids.shape[0]*self.num_sentences,-1), 
                             attention_mask=attention_mask[:,0:self.num_sentences,:].view(input_ids.shape[0]*self.num_sentences,-1),
                             token_type_ids=token_type_ids[:,0:self.num_sentences,:].view(input_ids.shape[0]*self.num_sentences,-1))
         
-        # You write you new head here
+        #Extract last hidden state of [CLS] token
         bertOutput=outputs1[0][:,0,:].view(input_ids.shape[0],self.num_sentences,-1)
-        # Xin: there was an error here so I revise for you.
-        # we input 10 sentence pairs and first view them as 20 sentences
-        # after extract CLS, we view it back to 10 sentence pairs
-        # at last we seperate them to 1 and 2
-        #print(bertOutput.shape)
+
         bertOutputArray = []
         
+    
+        #concatinates last hidden states of [CLS] token of each sentence together before classification
         for i in range(0,self.num_sentences):
             bertOutputArray.append(bertOutput[:,i,:])
-            
-
-        #print(bertOutput.shape)
-       
         outputs=torch.cat(bertOutputArray,1)
-        #print(outputs.shape)
+
         outputs = self.dropout(outputs)
-        #print(outputs.shape)
+
         
         logits = self.linear(outputs)
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, num_labels), labels.view(-1))
-            
 
-            
         return SequenceClassifierOutput(loss=loss,logits=logits)
     
 
-#GPT Model
-
 def GPT_model():
+    """Returns GPT model"""
     myGPTmodel = AutoModelForSequenceClassification.from_pretrained('gpt2', num_labels=num_labels)
     myGPTmodel.config.pad_token_id=myGPTmodel.config.eos_token_id
     return myGPTmodel
 
 
-#BERT+GPT Model
 class BERT_plus_GPT(nn.Module):   
-    
+    """Model which processes text both with BERT and GPT, then appends outputs together before classification"""
     def __init__(self):
         super(BERT_plus_GPT, self).__init__()
         self.bert = AutoModel.from_pretrained('bert-base-uncased')
@@ -89,7 +74,7 @@ class BERT_plus_GPT(nn.Module):
         self.linear = nn.Linear(768*2, num_labels)
         
     def forward(self, input_ids=None, attention_mask=None,token_type_ids=None,labels = None):
-        #print(input_ids[:,0,:].shape)
+
         
         outputs1 = self.bert(input_ids[:,0,:].view(input_ids.shape[0],-1), 
                             attention_mask=attention_mask[:,0,:].view(input_ids.shape[0],-1),
@@ -97,20 +82,22 @@ class BERT_plus_GPT(nn.Module):
         
         outputs2 = self.gpt(input_ids[:,1,:].view(input_ids.shape[0],-1), 
                             attention_mask=attention_mask[:,1,:].view(input_ids.shape[0],-1))
-        # You write you new head here
+
+        #Extract last hidden state of [CLS] token of BERT embedding
         bertOutput=outputs1[0][:,0,:]
-        #print(bertOutput.shape)
+
+        #Extract last hidden state of last token of GPT embedding
         hidden_states = outputs2[0]
         batch_size, sequence_length = input_ids.shape[:2]
         sequence_lengths = (torch.eq(input_ids[:,1,:], gpt_config.pad_token_id).long().argmax(-1) - 1).reshape(-1)
-        #print(sequence_lengths)
-        
+
         gptOutput=hidden_states[torch.arange(batch_size), sequence_lengths,:]
         
-        
+        #Concatenates outputs together for classification
         outputs=torch.cat((bertOutput,gptOutput),1)
+
         outputs = self.dropout(outputs)
-        #print(outputs.shape)
+
         logits = self.linear(outputs)
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
@@ -120,9 +107,9 @@ class BERT_plus_GPT(nn.Module):
     
 
 
-#BART
+
 class BART_model(nn.Module):    
-    
+    """BART model"""
     def __init__(self):
         super(BART_model, self).__init__()
         self.gpt = AutoModel.from_pretrained('facebook/bart-base')
@@ -130,24 +117,22 @@ class BART_model(nn.Module):
         self.linear = nn.Linear(768, num_labels)
         
     def forward(self, input_ids=None, attention_mask=None,token_type_ids=None,labels = None):
-        #print(input_ids.shape)
-               
+
         outputs2 = self.gpt(input_ids.view(input_ids.shape[0],-1), 
                             attention_mask=attention_mask.view(input_ids.shape[0],-1))
 
+        #Extracts last hidden state of last token of BART embedding
         hidden_states = outputs2[0]
         batch_size, sequence_length = input_ids.shape[:2]
-        #print(sequence_length)
+
         sequence_lengths = (torch.eq(input_ids, BART_config.pad_token_id).long().argmax(-1) - 1).reshape(-1)
-        
-       
-        
+
         gptOutput=hidden_states[torch.arange(batch_size), sequence_lengths,:]
-        
-        
+         
+        #Classification
         outputs=gptOutput
         outputs = self.dropout(outputs)
-        #print(outputs.shape)
+
         logits = self.linear(outputs)
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
@@ -156,11 +141,8 @@ class BART_model(nn.Module):
         return SequenceClassifierOutput(loss=loss,logits=logits)     
     
 
-
-#GBLS
-
 class GBLS(nn.Module):    
-
+    """Loss stitching model -- uses 2 layer mapper to map GPT representations to BERT representations before classification"""
     def __init__(self):
         super(GBLS, self).__init__()
         self.bert = AutoModel.from_pretrained('bert-base-uncased')
@@ -174,10 +156,7 @@ class GBLS(nn.Module):
         
         
     def forward(self, input_ids=None, attention_mask=None,token_type_ids=None,labels = None):
-        #print(input_ids.shape)
-        #print(attention_mask.shape)
-        #print(token_type_ids.shape)
-        
+ 
         bert_input=input_ids[:,1, :]
         if self.training:
             r_mask=(torch.rand((bert_input.shape[0],bert_input.shape[1]))>0.1).to(device)
@@ -192,30 +171,32 @@ class GBLS(nn.Module):
         
         outputs2 = self.gpt(input_ids[:,2:4,:].reshape(input_ids.shape[0]*2,-1), 
                             attention_mask=attention_mask[:,2:4,:].reshape(input_ids.shape[0]*2,-1))
-        # You write you new head here
+
+        #Extract last hidden state of [CLS] token of BERT embedding of sk-1
         bertOutput=outputs1[0][:,0,:]
-        #print(bertOutput.shape)
+
+        
+        #Extract last hidden state of last token of GPT embedding of sk-2 and sk-1
         hidden_states = outputs2[0]
         batch_size, sequence_length = input_ids.shape[:2]
         sequence_lengths = (torch.eq(input_ids[:,2:4,:], gpt_config.pad_token_id).long().argmax(-1) - 1).reshape(-1)
-        #print(sequence_lengths)
-        
+    
         gptOutput=hidden_states[torch.arange(2*batch_size), sequence_lengths,:].view(input_ids.shape[0],2,-1)
         
-        #print(gptOutput.shape)
+        #Map GPT embeddings to BERT embeddings using mapper
+        #Mapper attempts to map GPT embeddings of sn to BERT embeddings of sn+1
+        #GPT embedding of sk-2 mapped to BERT embedding of sk-1
+        #GPT embedding of sk-1 mapped to BERT embedding of sk
         BertPredicted=self.mapper2(self.tanh(self.mapper(gptOutput)))
-        #BertPredicted=self.mapper(gptOutput)
+        
+        #Stores mapper's attempt to map GPT embedding of sk-2 for later
         BertPredict=BertPredicted[:,0,:]
-        
-        #print(BertPredicted.shape)
-        
-        #print(bertOutput.shape)
-        #print(BertPredicted[:,1,:].shape)
+      
+        #Concatinates BERT embedding and the GPT embedding of sk-1 together for classification
         outputs=torch.cat((bertOutput,BertPredicted[:,1,:]),1)
-        #print(outputs.shape)
+
         outputs = self.dropout(outputs)
-        #print(outputs.shape)
-        
+
         logits = self.linear(outputs)
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
@@ -223,15 +204,13 @@ class GBLS(nn.Module):
             
             if(self.training):
                 Mapper_loss_fct = nn.MSELoss()
-                #print(bertOutput.shape)
-                #print(BertPredicted[:,0,:].shape)
+                
+                #Compares mapper's attempt to map GPT embedding of sk-2 to BERT embedding with BERT embedding of sk-1
+                #Includes difference in loss
                 Mapper_loss = Mapper_loss_fct(bertOutput, BertPredict)
                 loss=loss+Mapper_loss*0.05
             
         return SequenceClassifierOutput(loss=loss,logits=logits)  # (loss), scores, (hidden_states), (attentions)    
-
-
-#GBAS
 
 
 import numpy, copy
@@ -239,7 +218,7 @@ bert_config=AutoConfig.from_pretrained("bert-base-uncased")
 num_labels = 5
 
 class GBAS(nn.Module):
-    
+    """Attention stitching model -- uses multi-head attention to map GPT representations to BERT representations before classification"""
     def __init__(self):
         super(GBAS, self).__init__()
         self.bert = AutoModel.from_pretrained('bert-base-uncased')
@@ -253,8 +232,7 @@ class GBAS(nn.Module):
         
     def set_mapper_weight(self,):        
         self.current_epoch=self.current_epoch+1
-#        self.mapper_weight=self.mapper_weight*.9
-#        print(self.mapper_weight)
+
         
     def forward(self,         
         input_ids=None,
@@ -262,8 +240,8 @@ class GBAS(nn.Module):
         token_type_ids=None,
         labels=None,
     ):        
-        #print(input_ids[:,0:2,:].reshape(input_ids.shape[0]*2,-1).shape,token_type_ids.shape)
-        #randomlize the input for bert so that a memorization of the mapping can not be formed.
+       
+        #Masking the input for bert so that a memorization of the mapping can not be formed.
         bert_input=input_ids[:,0:2,:]
         if self.training:
             r_mask=(torch.rand((bert_input.shape[0],bert_input.shape[1],bert_input.shape[2]))>0.1).to(device)
@@ -276,56 +254,45 @@ class GBAS(nn.Module):
             attention_mask=attention_mask[:,0:2,:].reshape(input_ids.shape[0]*2,-1),
             token_type_ids=token_type_ids.view(input_ids.shape[0]*2,-1),
         )
+        #Extract last hidden state of [CLS] token of BERT embedding of sk-1
         bert_outputs = bert_outputs[0][:,0,:].view(input_ids.shape[0],2,-1)
-        #print(bert_outputs.shape)
+
         gpt_outputs = self.gpt2(
             input_ids[:,2:4,:].reshape(input_ids.shape[0]*2,-1), 
             attention_mask=attention_mask[:,2:4,:].reshape(input_ids.shape[0]*2,-1),
-        )        
+        )    
+
+        #Extract last hidden state of last token of GPT embedding of sk-2 and sk-1    
         hidden_states = gpt_outputs[0]
-        #print(hidden_states.shape)
+ 
         batch_size, sequence_length = input_ids.shape[:2]
         sequence_lengths = (torch.eq(input_ids[:,2:4,:], gpt_config.pad_token_id).long().argmax(-1) - 1).reshape(-1)
-        #print(sequence_lengths.shape)
-        
+
         gpt_outputs=hidden_states[torch.arange(batch_size*2), sequence_lengths,:].view(input_ids.shape[0],2,-1)
-        #print(gpt_outputs.shape)
-        # You write you new head here
+
         
         bert_output2=bert_outputs[:,0,:]#bert sk-2 
         bert_output1=bert_outputs[:,1,:]#bert sk-1
-        
-#        gpt_trans=self.atten(gpt_outputs,gpt_outputs,gpt_outputs, need_weights=False)
+              
         gpt_outputs2=gpt_outputs[:,0,:]#gpt sk-2 represent sk-1
         gpt_outputs1=gpt_outputs[:,1,:]#gpt sk-1 represent sk
-        #gpt sk-2 -> bert sk-1
-        #gpt sk-2, bert k-2   -> bert sk-1 
-        #gpt sk-1 -> unknown bert sk
-        #gpt sk-1, bert k-1   -> unknown bert sk 
-#        gpt_trans,_=self.atten(gpt_outputs1,bert_output1,bert_output1)#qkv (kv from encoder)
-#        gpt_trans,_=self.atten(gpt_outputs1,gpt_outputs1,bert_output1)#qkv (qk from encoder)
-        gpt_trans,_=self.atten(gpt_outputs1,gpt_outputs2,bert_output1)#qkv (q gpt(sk-1), k gpt(sk-2),v bert(sk-1))
-        #only use the atten not updating it
-#        temp_atten = copy.deepcopy(self.atten)
-#        for param in temp_atten.parameters():
-#            param.requires_grad=False
-#        gpt_trans0,_=self.atten(gpt_outputs1,sequence_output1,sequence_output1)#qkv
-#        gpt_trans1=gpt_trans[:,0,:]#sk-2 represent sk-1
-#        gpt_trans0=gpt_trans[:,1,:]#sk-1 represent sk
+
+        #Use multi-head attention to map gpt sk-1 to a BERT embedding of sk
+        gpt_trans,_=self.atten(gpt_outputs1,gpt_outputs2,bert_output1)
+     
         
         gpt_trans = self.dropout(gpt_trans)
         gpt_trans=gpt_trans+gpt_outputs1
         gpt_trans = self.layernorm(gpt_trans)
-#        sequence_output=gpt_trans
+
+        #Concatinate attention output and BERT embedding of sk-1 for classification
         sequence_output=torch.cat((bert_output1,gpt_trans),1)
-        #print(sequence_output.shape)
+
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, num_labels), labels.view(-1))
-#            loss_gblm = nn.MSELoss()
-#            loss_gblmvalue = loss_gblm(sequence_output1, gpt_trans1)*self.mapper_weight
-#            loss=loss+loss_gblmvalue
 
-        return SequenceClassifierOutput(loss=loss,logits=logits)  # (loss), scores, (hidden_states), (attentions)
+
+        return SequenceClassifierOutput(loss=loss,logits=logits)  

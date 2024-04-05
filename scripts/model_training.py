@@ -27,12 +27,9 @@ def fine_tuning(mymodel, dataset_encoded , batch_size):
     Keyword Arguments:
     myModel -- the model to be trained
     dataset_encoded -- tokenized dataset to fine tune model on
-    tqdm -- boolean, controls if displays progress bars, set to True if want to disable
+    batch_size -- batch size
     
     """
-    #print(device)
-    
-
     #Controls how training is to be done
     batch_size = batch_size
     logging_steps = len(dataset_encoded['train'])
@@ -63,7 +60,7 @@ def fine_tuning(mymodel, dataset_encoded , batch_size):
     return trainer
 
 def test(trainer, dataset_encoded):
-    """Method which tests trained model
+    """Method which tests trained model on testing data
     
     Keyword arguments:
     trainer -- instance of Trainer class
@@ -75,6 +72,12 @@ def test(trainer, dataset_encoded):
     trainer.evaluate(dataset_encoded['test'])
     
 def test_with_noise(trainer, dataset_encoded):
+    """Method which tests trained model on testing data with noise
+    
+    Keyword arguments:
+    trainer -- instance of Trainer class
+    dataset_encoded -- tokenized dataset to test model effectiveness on (Must include multiple versions of test with different kinds of noise)
+    """
     print("Validation:")
     trainer.evaluate(dataset_encoded['validation'])
     print("test delete 1:")
